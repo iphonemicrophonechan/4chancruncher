@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Media Cruncher</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body { -webkit-app-region: drag; font-family: sans-serif; }
+        button { -webkit-app-region: no-drag; }
+        .glass { background: rgba(255, 255, 255, 0.03); border: 1px solid rgba(255, 255, 255, 0.1); }
+        .no-drag { -webkit-app-region: no-drag; }
+    </style>
+</head>
+<body class="bg-[#09090b] text-zinc-100 h-screen overflow-hidden select-none">
+    
+    <!-- Title Bar -->
+    <div class="flex justify-between items-center p-4">
+        <div class="text-xs font-black tracking-tighter text-zinc-500 uppercase">Cruncher v1.0</div>
+        <button id="close" class="no-drag text-zinc-600 hover:text-white transition">
+            <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20"><path d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z"/></svg>
+        </button>
+    </div>
+
+    <div class="px-8 flex flex-col items-center text-center space-y-8">
+        <div class="mt-4">
+            <h1 class="text-3xl font-bold bg-gradient-to-r from-green-400 to-emerald-600 bg-clip-text text-transparent">MediaCruncher</h1>
+            <p class="text-zinc-500 text-sm mt-1 italic">Desktop Optimization Engine</p>
+        </div>
+
+        <!-- File Area -->
+        <div id="file-select" class="no-drag glass w-full rounded-3xl p-10 cursor-pointer hover:bg-white/[0.02] transition-all group border-dashed border-2 border-zinc-800">
+            <div id="prompt">
+                <div class="w-16 h-16 bg-zinc-900 rounded-2xl flex items-center justify-center mx-auto mb-4 group-hover:scale-110 transition">
+                    <svg class="w-8 h-8 text-zinc-600 group-hover:text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+                </div>
+                <p class="font-bold text-lg">Choose File</p>
+                <p class="text-xs text-zinc-500">Video or Image</p>
+            </div>
+            <div id="selected" class="hidden">
+                <p id="fname" class="font-bold text-white truncate"></p>
+                <p id="fsize" class="text-xs text-zinc-500"></p>
+            </div>
+        </div>
+
+        <!-- Progress -->
+        <div id="progress-box" class="hidden w-full space-y-4">
+            <div class="flex justify-between text-xs font-bold uppercase tracking-widest text-zinc-500">
+                <span id="status">Crunching...</span>
+                <span id="perc">0%</span>
+            </div>
+            <div class="h-2 w-full bg-zinc-900 rounded-full overflow-hidden">
+                <div id="bar" class="h-full bg-green-500 w-0 transition-all duration-300 shadow-[0_0_10px_rgba(34,197,94,0.5)]"></div>
+            </div>
+        </div>
+
+        <!-- Actions -->
+        <button id="crunch" class="no-drag hidden w-full py-4 bg-green-500 hover:bg-green-400 text-black font-black rounded-2xl transition-all uppercase tracking-widest shadow-xl shadow-green-500/10">
+            Crunch to 4MB
+        </button>
+
+        <div id="success" class="hidden text-center space-y-4">
+            <p class="text-green-400 text-sm font-bold">Optimization Complete!</p>
+            <button onclick="location.reload()" class="no-drag text-zinc-500 hover:text-white text-xs underline">Process another</button>
+        </div>
+    </div>
+
+    <script>
+        const { ipcRenderer } = require('electron');
+
+        let selectedPath = null;
+        const els = {
+            select: document.getElementById('file-select'),
+            prompt: document.getElementById('prompt'),
+            selected: document.getElementById('selected'),
+            fname: document.getElementById('fname'),
+            fsize: document.getElementById('fsize'),
+            crunch: document.getElementById('crunch'),
+            prog: document.getElementById('progress-box'),
+            bar: document.getElementById('bar'),
+            perc: document.getElementById('perc'),
+            success: document.getElementById('success'),
+            status: document.getElementById('status')
+        };
+
+        els.select.onclick = async () => {
+            const file = await ipcRenderer.invoke('select-file');
+            if (file) {
+                selectedPath = file.path;
+                els.prompt.classList.add('hidden');
+                els.selected.classList.remove('hidden');
+                els.fname.innerText = file.name;
+                els.fsize.innerText = file.size + ' MB';
+                els.crunch.classList.remove('hidden');
+            }
+        };
+
+        els.crunch.onclick = () => {
+            els.crunch.classList.add('hidden');
+            els.prog.classList.remove('hidden');
+            ipcRenderer.send('start-crunch', selectedPath);
+        };
+
+        ipcRenderer.on('progress', (e, p) => {
+            const val = Math.round(p || 0);
+            els.bar.style.width = val + '%';
+            els.perc.innerText = val + '%';
+        });
+
+        ipcRenderer.on('complete', (e, path) => {
+            els.prog.classList.add('hidden');
+            els.success.classList.remove('hidden');
+            new Notification('Crunch Complete', { body: 'File saved in same folder.' });
+        });
+
+        ipcRenderer.on('error', (e, msg) => {
+            alert('Error: ' + msg);
+            location.reload();
+        });
+
+        document.getElementById('close').onclick = () => ipcRenderer.send('close-app');
+    </script>
+</body>
+</html>
